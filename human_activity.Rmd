@@ -1,0 +1,72 @@
+Reproducible Research: Peer Assignment 1
+===============
+
+
+### Loading and pre-processing data
+
+This is a markdown file explaining how I did the first project. The data is stored with this Rmd in the same directory. I prefer to work with data tables as opposed to data frames; let's load data.table and read in some data.
+
+```{r}
+library(data.table)
+
+dataset <- fread("~/Coursera/Data Science Specialization/Reproducible Research/Project 1/activity.csv")
+```
+
+
+Let's take a look at what structure this data is in:
+```{r}
+str(dataset)
+```
+
+We notice the date column isn't truly the Date class but instead is a character. Let's change that.
+```{r, results='hide'}
+dataset[, date := as.Date(date)]
+```
+```{r}
+str(dataset)
+```
+
+That's better. We also notice there are some blocks of NAs in the steps column but we were warned that might be the case as devices do not always record well. We will leave those in for now.
+
+
+### What is the mean total number of steps taken per day?
+
+This is where English gets funny. What exactly does "per day" mean? Let's take a look at how many days we are working with anyways.
+```{r}
+dataset[, unique(date)]
+```
+
+Looks like we are going to want to add up the number of steps per day (ignoring NAs by the na.rm feature) and then use this data to generate a histogram.
+```{r}
+stepsstats <- dataset[, list(total_steps = sum(steps, na.rm=TRUE)), by = date]
+hist(stepsstats[, total_steps], xlab = "Number of Steps", main = "Histogram of Total Steps")
+```
+
+We should probably get the mean and median of total steps taken per day from this data as well.
+```{r}
+stepsstats[, mean(total_steps)]
+stepsstats[, median(total_steps)]
+```
+
+These values make sense as the image we have produced is skewed right which will shift the mean to the left. I would like to take a moment to explain why I did not find each mean and median for each day as English can be confusing and to confess, that was my first interpretation of this question. I am going to go ahead and calculate one of these (mean) just for kicks to show my point.
+```{r}
+dataset[, list(mean_steps = mean(steps, na.rm=TRUE)), by = date]
+```
+
+This result is overwhelming. Where does one begin with understanding the mean for each day? This way of thinking is not very useful so we choose to find the mean of the sum of total number of steps per day. Let us continue.
+
+### What is the average daily activity pattern?
+
+Some words.
+
+```{r}
+dailypattern <- dataset[, list(avg_steps = mean(steps, na.rm=TRUE)), by = interval]
+plot(x = dailypattern[, interval], y = dailypattern[, avg_steps], type = "l",
+     xlab = "Interval", ylab = "Average Number of Steps", main = "Average Daily Activity Pattern")
+```
+
+The maximum number of steps for average daily activity
+```{r}
+dailypattern[avg_steps == max(avg_steps)]
+```
+occurs on the 835th minute.

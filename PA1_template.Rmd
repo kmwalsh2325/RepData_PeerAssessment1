@@ -1,20 +1,135 @@
-# Reproducible Research: Peer Assessment 1
+Reproducible Research: Peer Assignment 1
+===============
 
 
-## Loading and preprocessing the data
+### Loading and pre-processing data
+
+This is a markdown file explains the first peer assignment. The data is stored with this Rmd in the same directory. I prefer to work with data tables as opposed to data frames; let's load data.table and read in some data.
+
+```{r}
+library(data.table)
+
+dataset <- fread("~/Coursera/Data Science Specialization/Reproducible Research/Project 1/activity.csv")
+```
 
 
+Let's take a look at what structure this data is in:
+```{r}
+str(dataset)
+```
 
-## What is mean total number of steps taken per day?
+We notice the date column isn't truly the Date class but instead is a character. Let's change that.
+```{r, results='hide'}
+dataset[, date := as.Date(date)]
+```
+```{r}
+str(dataset)
+```
+
+That's better. We also notice there are some blocks of NAs in the steps column but we were warned that might be the case as devices do not always record well. We will leave those in for now.
 
 
+### What is the mean total number of steps taken per day?
 
-## What is the average daily activity pattern?
+Sounds like we are going to want to add up the number of steps per day (ignoring NAs by the na.rm feature) and then use this data to generate a histogram.
+```{r}
+stepsstats <- dataset[, list(total_steps = sum(steps, na.rm=TRUE)), by = date]
+hist(stepsstats[, total_steps], xlab = "Number of Steps", main = "Histogram of Total Steps")
+```
+
+We should probably get the mean and median of total steps taken per day from this data as well.
+```{r}
+stepsstats[, mean(total_steps)]
+stepsstats[, median(total_steps)]
+```
+
+These values make sense as the image we have produced is skewed right which will shift the mean to the left. I would like to take a moment to explain why I did not find each mean and median for each day as English can be confusing and to confess, that was my first interpretation of this question. I am going to go ahead and calculate one of these (mean) just for kicks to show my point.
+```{r}
+dataset[, list(mean_steps = mean(steps, na.rm=TRUE)), by = date]
+```
+
+This result is overwhelming. Where does one begin with understanding the mean for each day? This way of thinking is not very useful so we choose to find the mean of the sum of total number of steps per day. Let us continue.
+
+### What is the average daily activity pattern?
+
+Here we're interested in looking at the daily average pattern, that is, averaging across all days what does a typical day look like with regard to activity pattern?
+
+```{r}
+dailypattern <- dataset[, list(avg_steps = mean(steps, na.rm=TRUE)), by = interval]
+plot(x = dailypattern[, interval], y = dailypattern[, avg_steps], type = "l",
+     xlab = "Interval", ylab = "Average Number of Steps", main = "Average Daily Activity Pattern")
+```
+
+The maximum number of steps for average daily activity
+```{r}
+dailypattern[avg_steps == max(avg_steps)]
+```
+occurs on the `r dailypattern[avg_steps == max(avg_steps), interval]`th minute with `r dailypattern[avg_steps == max(avg_steps), avg_steps]` steps.
 
 
+### Imputing missing values
 
-## Imputing missing values
+1. Calculate the total number of rows with an NA value for steps. 
+This question is easy, we need only filter for the NA steps and count the number of rows using the .N function. 
+
+```{r, results='hide'}
+dataset[is.na(steps), .N]
+```
+
+Looks like there are `r dataset[is.na(steps), .N]` rows with null value.
 
 
+2. Devise a strategy for filling in NA values. To make things simple I am choosing to assign NA values the overall mean number of steps, `r dataset[, mean(steps, na.rm=TRUE)]`. The first note that should be made is that this value is not an integer which is the class of the steps column.
 
-## Are there differences in activity patterns between weekdays and weekends?
+3. Create a new dataset with NA values filled in.
+```{r, warning=FALSE}
+completedata <- fread("~/Coursera/Data Science Specialization/Reproducible Research/Project 1/activity.csv")
+avg_steps <- completedata[, mean(steps, na.rm=TRUE)]
+completedata[is.na(steps), steps:=avg_steps]
+```
+
+To clean up the output I hid a warning about coersion. This warning was about the steps columns casting the double value to the integer class to match the original steps column. That is, `r avg_steps` was rounded to integer value 37.
+
+4. Make a pretty histogram and report the **mean** and **median** values as before.
+
+```{r}
+stepsstats2 <- completedata[, list(total_steps = sum(steps)), by = date]
+hist(stepsstats2[, total_steps], xlab = "Number of Steps", main = "Histogram of Total Steps")
+```
+
+The new **mean** value is 
+```{r} 
+options(scipen = 100)
+stepsstats2[, mean(total_steps)]
+``` 
+
+and the new **median** value is 
+```{r} 
+stepsstats2[, median(total_steps)]
+```
+
+Do these values differ from the data at the beginning of the assignment? And how does this affect estimating the daily total number of steps?
+
+Incredibly so! With regards to the mean and median overall, the NAs were originally regarded as 0s as they did not add value to the days missing values. By adding in a non-zero quantity, there is no surprise that the overall mean and median increased as more steps were being added to the total daily sums.
+
+
+### Are there differences in activity patterns between weekdays and weekends?
+
+We begin by declaring a weekday column with two levels: "weekday", "weekend". 
+```{r, results='hide'}
+completedata[, date := as.Date(date)]
+completedata[, weekdays(date)]
+completedata[, weekday := ifelse(weekdays(date) %in% c("Saturday", "Sunday"), "weekend", "weekday")]
+```
+
+
+Using the lattice package we create a two panel xyplot.
+```{r, results='hide'}
+library(lattice)
+wkdata <- completedata[, list(avg_steps = mean(steps)), keyby = c("weekday", "interval")]
+```
+```{r}
+xyplot(avg_steps ~ interval | weekday, data = wkdata, type = "l", layout = c(1, 2), xlab = "Interval", ylab = "Number of Steps", main = "Week Activity Patterns")
+```
+
+It appears that over the weekend there tends to be more constant activity than during the average weekday.
